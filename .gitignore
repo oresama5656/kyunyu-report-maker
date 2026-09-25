@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+test_output.docx
+test_direct.docx
+test_render.py
+.streamlit/
