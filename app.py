@@ -157,7 +157,6 @@ template_data = load_templates()
 # --- 薬局情報のLocalStorage / クエリパラメータ永続化処理 ---
 params = st.query_params
 
-# クエリパラメータに店舗情報がない場合、ブラウザのLocalStorageから自動復元を試みる
 if "p_name" not in params:
     js_restore_from_storage = """
     <script>
@@ -179,11 +178,12 @@ if "p_name" not in params:
     """
     components.html(js_restore_from_storage, height=0)
 
-default_pharmacy_name = params.get("p_name", "あやめ薬局")
-default_pharmacy_address = params.get("p_addr", "日立市南高野3丁目15番5号")
-default_pharmacy_tel = params.get("p_tel", "0294-33-5920")
-default_pharmacy_fax = params.get("p_fax", "0294-33-5921")
-default_pharmacist_name = params.get("p_phm", "相澤　良太")
+# デフォルトを架空の「アビー薬局」に設定
+default_pharmacy_name = params.get("p_name", "アビー薬局")
+default_pharmacy_address = params.get("p_addr", "茨城県水戸市緑町1丁目2番3号")
+default_pharmacy_tel = params.get("p_tel", "029-200-1234")
+default_pharmacy_fax = params.get("p_fax", "029-200-1235")
+default_pharmacist_name = params.get("p_phm", "薬師寺　花子")
 
 def get_today_wareki():
     today = datetime.date.today()
@@ -229,7 +229,6 @@ with st.sidebar:
     pharmacy_fax = st.text_input("FAX", value=default_pharmacy_fax)
     pharmacist_name = st.text_input("担当薬剤師名", value=default_pharmacist_name)
 
-    # この端末に保存するボタン
     if st.button("💾 このPCに薬局情報を保存", use_container_width=True):
         st.query_params["p_name"] = pharmacy_name
         st.query_params["p_addr"] = pharmacy_address
