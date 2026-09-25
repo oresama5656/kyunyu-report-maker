@@ -66,19 +66,19 @@ def generate_template():
                     r.text = ""
             return
 
-        # 5. 吸入手技の説明 が含まれる段落を {{ guidance_detail }} に置換
+        # 5. 吸入手技の説明：箇条書きスタイル（numPr）を削除して通常の文章段落にする
         if "吸入手技の説明" in full_text:
+            for np in p._p.xpath('.//w:numPr'):
+                np.getparent().remove(np)
+            for r in p.runs:
+                r.text = ""
             if p.runs:
                 p.runs[0].text = "{{ guidance_detail }}"
-                for r in p.runs[1:]:
-                    r.text = ""
             return
 
-        # 6. 使用経験の確認 が含まれる段落は削除（空文字に）
+        # 6. 使用経験の確認：不要な空段落ごと完全に削除
         if "使用経験の確認" in full_text:
-            if p.runs:
-                for r in p.runs:
-                    r.text = ""
+            p._p.getparent().remove(p._p)
             return
 
         # 単純な文字列置換
@@ -90,17 +90,17 @@ def generate_template():
                     for r in p.runs[1:]:
                         r.text = ""
 
-    for p in doc.paragraphs:
+    for p in list(doc.paragraphs):
         process_paragraph(p)
 
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
-                for p in cell.paragraphs:
+                for p in list(cell.paragraphs):
                     process_paragraph(p)
 
     doc.save(template_path)
-    print(f"Fixed template created without sdt displacement: {template_path}")
+    print(f"Fixed template created without bullet list: {template_path}")
 
 if __name__ == "__main__":
     generate_template()
