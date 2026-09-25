@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import datetime
 from docxtpl import DocxTemplate
 import io
@@ -13,7 +14,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# ノー・スクロール（1画面完結）のための超コンパクト＆モダンCSS
+# 極限まで無駄を削ぎ落とした洗練されたモダンUIスタイル
 st.markdown("""
 <style>
     /* グローバル設定 */
@@ -48,17 +49,6 @@ st.markdown("""
     .header-desc {
         font-size: 0.75rem;
         color: #64748B;
-    }
-
-    /* セクション見出しの超圧縮 */
-    .section-label {
-        font-size: 0.72rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #64748B;
-        margin-top: 0.5rem;
-        margin-bottom: 0.3rem;
     }
 
     /* ラベルの小型化と余白削減 */
@@ -164,6 +154,37 @@ def load_templates():
 
 template_data = load_templates()
 
+# --- 薬局情報のLocalStorage / クエリパラメータ永続化処理 ---
+params = st.query_params
+
+# クエリパラメータに店舗情報がない場合、ブラウザのLocalStorageから自動復元を試みる
+if "p_name" not in params:
+    js_restore_from_storage = """
+    <script>
+        const storedName = localStorage.getItem("kyunyu_p_name");
+        if (storedName) {
+            const storedAddr = localStorage.getItem("kyunyu_p_addr") || "";
+            const storedTel = localStorage.getItem("kyunyu_p_tel") || "";
+            const storedFax = localStorage.getItem("kyunyu_p_fax") || "";
+            const storedPhm = localStorage.getItem("kyunyu_p_phm") || "";
+            const currentUrl = new URL(window.parent.location.href);
+            currentUrl.searchParams.set("p_name", storedName);
+            currentUrl.searchParams.set("p_addr", storedAddr);
+            currentUrl.searchParams.set("p_tel", storedTel);
+            currentUrl.searchParams.set("p_fax", storedFax);
+            currentUrl.searchParams.set("p_phm", storedPhm);
+            window.parent.location.href = currentUrl.href;
+        }
+    </script>
+    """
+    components.html(js_restore_from_storage, height=0)
+
+default_pharmacy_name = params.get("p_name", "あやめ薬局")
+default_pharmacy_address = params.get("p_addr", "日立市南高野3丁目15番5号")
+default_pharmacy_tel = params.get("p_tel", "0294-33-5920")
+default_pharmacy_fax = params.get("p_fax", "0294-33-5921")
+default_pharmacist_name = params.get("p_phm", "相澤　良太")
+
 def get_today_wareki():
     today = datetime.date.today()
     if today.year >= 2019:
@@ -189,7 +210,7 @@ def set_random_template(category_key):
         chosen_text = random.choice(items)
         st.session_state["input_guidance_detail"] = chosen_text
 
-# ヘッダー（超省スペース）
+# ヘッダー
 st.markdown("""
 <div class="header-box">
     <div class="header-title">吸入指導トレーシングレポート作成</div>
@@ -200,16 +221,36 @@ st.markdown("""
 # サイドバー: 薬局設定
 with st.sidebar:
     st.markdown("### 薬局情報設定")
-    st.caption("ここで設定した値がレポートに反映されます")
-    pharmacy_name = st.text_input("薬局名称", value="あやめ薬局")
-    pharmacy_address = st.text_input("薬局住所", value="日立市南高野3丁目15番5号")
-    pharmacy_tel = st.text_input("TEL", value="0294-33-5920")
-    pharmacy_fax = st.text_input("FAX", value="0294-33-5921")
-    pharmacist_name = st.text_input("担当薬剤師名", value="相澤　良太")
+    st.caption("ここで設定した情報がレポートに反映されます")
+    
+    pharmacy_name = st.text_input("薬局名称", value=default_pharmacy_name)
+    pharmacy_address = st.text_input("薬局住所", value=default_pharmacy_address)
+    pharmacy_tel = st.text_input("TEL", value=default_pharmacy_tel)
+    pharmacy_fax = st.text_input("FAX", value=default_pharmacy_fax)
+    pharmacist_name = st.text_input("担当薬剤師名", value=default_pharmacist_name)
+
+    # この端末に保存するボタン
+    if st.button("💾 このPCに薬局情報を保存", use_container_width=True):
+        st.query_params["p_name"] = pharmacy_name
+        st.query_params["p_addr"] = pharmacy_address
+        st.query_params["p_tel"] = pharmacy_tel
+        st.query_params["p_fax"] = pharmacy_fax
+        st.query_params["p_phm"] = pharmacist_name
+        
+        js_save_to_storage = f"""
+        <script>
+            localStorage.setItem("kyunyu_p_name", "{pharmacy_name}");
+            localStorage.setItem("kyunyu_p_addr", "{pharmacy_address}");
+            localStorage.setItem("kyunyu_p_tel", "{pharmacy_tel}");
+            localStorage.setItem("kyunyu_p_fax", "{pharmacy_fax}");
+            localStorage.setItem("kyunyu_p_phm", "{pharmacist_name}");
+        </script>
+        """
+        components.html(js_save_to_storage, height=0)
+        st.success("✅ この端末に保存しました！次回以降も自動で反映されます。")
 
 # --- メインフォーム ---
 
-# 基本情報は1列でスリムに整列
 report_date = st.text_input("報告日", value=get_today_wareki())
 doctor_name = st.text_input("処方医名（先生御机下）", value="相澤　一郎")
 patient_name = st.text_input("患者名（様）", value="山田　太郎")
@@ -225,7 +266,7 @@ consent_option = st.radio(
 
 target_drug = st.text_input("対象薬剤", value="イナビル吸入粉末剤２０ｍｇ")
 
-# 2列2行のコンパクトボタングリッド
+# 2列2行ボタングリッド
 st.markdown("<p style='font-size: 0.72rem; font-weight: 600; color: #64748B; margin-top: 0.5rem; margin-bottom: 0.25rem;'>文面生成（クリックで自動入力）</p>", unsafe_allow_html=True)
 
 b1, b2 = st.columns(2)
@@ -240,7 +281,7 @@ with b3:
 with b4:
     st.button("手技修正・改善", use_container_width=True, on_click=set_random_template, args=("fix_improved",))
 
-# 指導内容テキストエリア（コンパクトな100px）
+# 指導内容テキストエリア
 guidance_detail = st.text_area(
     "指導内容および状況",
     height=100,
