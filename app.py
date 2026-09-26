@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import datetime
 from docxtpl import DocxTemplate
 import io
@@ -154,31 +153,9 @@ def load_templates():
 
 template_data = load_templates()
 
-# --- 薬局情報のLocalStorage / クエリパラメータ永続化処理 ---
+# --- 薬局情報の永続化（URLパラメータ方式：セキュリティ制限を受けず100%確実に動作） ---
 params = st.query_params
 
-if "p_name" not in params:
-    js_restore_from_storage = """
-    <script>
-        const storedName = localStorage.getItem("kyunyu_p_name");
-        if (storedName) {
-            const storedAddr = localStorage.getItem("kyunyu_p_addr") || "";
-            const storedTel = localStorage.getItem("kyunyu_p_tel") || "";
-            const storedFax = localStorage.getItem("kyunyu_p_fax") || "";
-            const storedPhm = localStorage.getItem("kyunyu_p_phm") || "";
-            const currentUrl = new URL(window.parent.location.href);
-            currentUrl.searchParams.set("p_name", storedName);
-            currentUrl.searchParams.set("p_addr", storedAddr);
-            currentUrl.searchParams.set("p_tel", storedTel);
-            currentUrl.searchParams.set("p_fax", storedFax);
-            currentUrl.searchParams.set("p_phm", storedPhm);
-            window.parent.location.href = currentUrl.href;
-        }
-    </script>
-    """
-    components.html(js_restore_from_storage, height=0)
-
-# デフォルトを架空の「アビー薬局」に設定
 default_pharmacy_name = params.get("p_name", "アビー薬局")
 default_pharmacy_address = params.get("p_addr", "茨城県水戸市緑町1丁目2番3号")
 default_pharmacy_tel = params.get("p_tel", "029-200-1234")
@@ -229,24 +206,19 @@ with st.sidebar:
     pharmacy_fax = st.text_input("FAX", value=default_pharmacy_fax)
     pharmacist_name = st.text_input("担当薬剤師名", value=default_pharmacist_name)
 
-    if st.button("💾 このPCに薬局情報を保存", use_container_width=True):
+    # 薬局情報をURLに保存・反映するボタン
+    if st.button("💾 この薬局情報を反映してURLを発行", use_container_width=True):
         st.query_params["p_name"] = pharmacy_name
         st.query_params["p_addr"] = pharmacy_address
         st.query_params["p_tel"] = pharmacy_tel
         st.query_params["p_fax"] = pharmacy_fax
         st.query_params["p_phm"] = pharmacist_name
-        
-        js_save_to_storage = f"""
-        <script>
-            localStorage.setItem("kyunyu_p_name", "{pharmacy_name}");
-            localStorage.setItem("kyunyu_p_addr", "{pharmacy_address}");
-            localStorage.setItem("kyunyu_p_tel", "{pharmacy_tel}");
-            localStorage.setItem("kyunyu_p_fax", "{pharmacy_fax}");
-            localStorage.setItem("kyunyu_p_phm", "{pharmacist_name}");
-        </script>
-        """
-        components.html(js_save_to_storage, height=0)
-        st.success("✅ この端末に保存しました！次回以降も自動で反映されます。")
+        st.rerun()
+
+    # パラメータがセットされている場合はブックマーク案内を表示
+    if "p_name" in params:
+        st.success("✅ 自店情報がURLに反映されました！")
+        st.info("💡 **重要：** 現在のアドレスバーのURLをブラウザの「お気に入り（ブックマーク）」に登録してください。次回からそのブックマークを開くだけで、常にこの薬局情報がセットされた状態で起動します！")
 
 # --- メインフォーム ---
 
