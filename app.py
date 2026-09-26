@@ -51,7 +51,7 @@ st.markdown("""
     }
 
     /* ラベルの小型化と余白削減 */
-    .stTextInput > label, .stSelectbox > label, .stTextArea > label, .stRadio > label {
+    .stTextInput > label, .stTextArea > label, .stRadio > label {
         font-size: 0.78rem !important;
         font-weight: 600 !important;
         color: #475569 !important;
@@ -59,23 +59,38 @@ st.markdown("""
     }
 
     /* 入力ウィジェットの垂直マージン圧縮 */
-    div[data-testid="stTextInput"], div[data-testid="stSelectbox"], div[data-testid="stTextArea"], div[data-testid="stRadio"] {
+    div[data-testid="stTextInput"], div[data-testid="stTextArea"], div[data-testid="stRadio"] {
         margin-bottom: -0.35rem !important;
     }
 
-    /* 入力ボックス・セレクトボックスのスリム化 */
-    input[type="text"], div[data-baseweb="select"] > div {
+    /* 入力ボックスのスリム化 */
+    input[type="text"] {
         height: 34px !important;
-        min-height: 34px !important;
-        padding: 2px 8px !important;
+        padding: 4px 10px !important;
         font-size: 0.85rem !important;
         border-radius: 6px !important;
         background-color: #FFFFFF !important;
         border: 1px solid #CBD5E1 !important;
     }
-    input[type="text"]:focus {
+    input[type="text"]:focus, textarea:focus {
         border-color: #0F172A !important;
         box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08) !important;
+    }
+
+    /* 履歴チップボタンスタイル */
+    .history-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 2px;
+        margin-bottom: 6px;
+        overflow-x: auto;
+    }
+    .history-label {
+        font-size: 0.70rem;
+        color: #94A3B8;
+        font-weight: 600;
+        white-space: nowrap;
     }
 
     /* テキストエリアのスリム化 */
@@ -154,39 +169,39 @@ def load_templates():
 
 template_data = load_templates()
 
-# 代表的な吸入薬のマスタープリセット
-DRUG_PRESETS = [
-    "イナビル吸入粉末剤２０ｍｇ",
-    "レルベア１００エリプタ３０吸入用",
-    "レルベア２００エリプタ３０吸入用",
-    "シムビコートタービュヘイラー３０吸入",
-    "シムビコートタービュヘイラー６０吸入",
-    "テリルジー１００エリプタ３０吸入用",
-    "テリルジー２００エリプタ３０吸入用",
-    "フルティフォーム５０エアゾール",
-    "フルティフォーム１２５エアゾール",
-    "アドエア１００ディスカス",
-    "アドエア２５０ディスカス",
-    "スピリーバ２．５μｇレスピマット",
-    "エナシア吸入用カプセル",
-    "その他（直接入力）"
-]
-
-# --- 薬局情報・よく使う医師の永続化（URLパラメータ方式） ---
+# 薬局設定のURLパラメータ
 params = st.query_params
-
 default_pharmacy_name = params.get("p_name", "アビー薬局")
 default_pharmacy_address = params.get("p_addr", "茨城県水戸市緑町1丁目2番3号")
 default_pharmacy_tel = params.get("p_tel", "029-200-1234")
 default_pharmacy_fax = params.get("p_fax", "029-200-1235")
 default_pharmacist_name = params.get("p_phm", "薬師寺　花子")
-default_doctors_str = params.get("p_docs", "相澤　一郎")
 
-# カンマ区切りの医師リストを作成
-registered_doctors = [d.strip() for d in default_doctors_str.split(",") if d.strip()]
-if not registered_doctors:
-    registered_doctors = ["相澤　一郎"]
-doctor_options = registered_doctors + ["その他（直接入力）"]
+# 履歴データの初期化（医師と薬剤の最近使ったリスト）
+if "history_doctors" not in st.session_state:
+    st.session_state["history_doctors"] = ["相澤　一郎"]
+
+if "history_drugs" not in st.session_state:
+    st.session_state["history_drugs"] = [
+        "イナビル吸入粉末剤２０ｍｇ",
+        "レルベア１００エリプタ３０吸入用",
+        "シムビコートタービュヘイラー３０吸入",
+        "テリルジー１００エリプタ３０吸入用",
+        "フルティフォーム５０エアゾール"
+    ]
+
+# 入力欄のセッション状態初期化
+if "input_doctor" not in st.session_state:
+    st.session_state["input_doctor"] = "相澤　一郎"
+
+if "input_drug" not in st.session_state:
+    st.session_state["input_drug"] = "イナビル吸入粉末剤２０ｍｇ"
+
+def set_doctor_from_history(doc_name):
+    st.session_state["input_doctor"] = doc_name
+
+def set_drug_from_history(drug_name):
+    st.session_state["input_drug"] = drug_name
 
 def get_today_wareki():
     today = datetime.date.today()
@@ -221,44 +236,43 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# サイドバー: 薬局設定 & よく使う医師設定
+# サイドバー: 薬局設定
 with st.sidebar:
-    st.markdown("### 薬局・医師設定")
-    st.caption("ここで設定した情報が初期値として反映されます")
+    st.markdown("### 薬局情報設定")
+    st.caption("ここで設定した情報がレポートに反映されます")
     
     pharmacy_name = st.text_input("薬局名称", value=default_pharmacy_name)
     pharmacy_address = st.text_input("薬局住所", value=default_pharmacy_address)
     pharmacy_tel = st.text_input("TEL", value=default_pharmacy_tel)
     pharmacy_fax = st.text_input("FAX", value=default_pharmacy_fax)
     pharmacist_name = st.text_input("担当薬剤師名", value=default_pharmacist_name)
-    
-    st.markdown("---")
-    doctors_input = st.text_input("よく使う処方医（カンマ区切り）", value=default_doctors_str)
-    st.caption("例: 相澤　一郎, 鈴木　健太")
 
-    if st.button("💾 この設定を反映してURLを発行", use_container_width=True):
+    if st.button("💾 この薬局情報を反映してURLを発行", use_container_width=True):
         st.query_params["p_name"] = pharmacy_name
         st.query_params["p_addr"] = pharmacy_address
         st.query_params["p_tel"] = pharmacy_tel
         st.query_params["p_fax"] = pharmacy_fax
         st.query_params["p_phm"] = pharmacist_name
-        st.query_params["p_docs"] = doctors_input
         st.rerun()
 
     if "p_name" in params:
         st.success("✅ 設定がURLに反映されました！")
-        st.info("💡 アドレスバーのURLをブラウザの「ブックマーク（お気に入り）」に登録してください。次回からこの薬局・医師リストが自動セットされます！")
+        st.info("💡 アドレスバーのURLをお気に入りに登録しておけば、次回から自動で自店情報が入ります。")
 
 # --- メインフォーム ---
 
 report_date = st.text_input("報告日", value=get_today_wareki())
 
-# 処方医の選択（自店の登録医師リストからプルダウン選択＋直接入力）
-selected_doctor = st.selectbox("処方医名（先生御机下）", options=doctor_options, index=0)
-if selected_doctor == "その他（直接入力）":
-    doctor_name = st.text_input("処方医名を入力してください", value="", placeholder="例: 佐藤　一郎")
-else:
-    doctor_name = selected_doctor
+# 処方医名：普通のテキスト入力 ＋ 直感的な履歴ボタン
+doctor_name = st.text_input("処方医名（先生御机下）", key="input_doctor")
+
+# 履歴が複数ある場合にボタンでワンタップ入力
+if len(st.session_state["history_doctors"]) > 0:
+    st.caption("よく使う処方医（クリックで自動入力）：")
+    doc_cols = st.columns(min(len(st.session_state["history_doctors"]), 4))
+    for i, doc in enumerate(st.session_state["history_doctors"][:4]):
+        with doc_cols[i]:
+            st.button(doc, key=f"btn_doc_{i}", use_container_width=True, on_click=set_doctor_from_history, args=(doc,))
 
 patient_name = st.text_input("患者名（様）", value="山田　太郎")
 patient_dob = st.text_input("生年月日", value="平成29年3月14日")
@@ -271,12 +285,25 @@ consent_option = st.radio(
     horizontal=True
 )
 
-# 対象薬剤の選択（代表的吸入薬からプルダウン選択＋直接入力）
-selected_drug = st.selectbox("対象薬剤", options=DRUG_PRESETS, index=0)
-if selected_drug == "その他（直接入力）":
-    target_drug = st.text_input("対象薬剤名を入力してください", value="", placeholder="例: ○○吸入薬")
-else:
-    target_drug = selected_drug
+# 対象薬剤：普通のテキスト入力 ＋ 直感的な履歴・主要薬ボタン
+target_drug = st.text_input("対象薬剤", key="input_drug")
+
+st.caption("よく使う吸入薬（クリックで自動入力）：")
+drug_cols1 = st.columns(3)
+with drug_cols1[0]:
+    st.button("イナビル", use_container_width=True, on_click=set_drug_from_history, args=("イナビル吸入粉末剤２０ｍｇ",))
+with drug_cols1[1]:
+    st.button("レルベア100", use_container_width=True, on_click=set_drug_from_history, args=("レルベア１００エリプタ３０吸入用",))
+with drug_cols1[2]:
+    st.button("レルベア200", use_container_width=True, on_click=set_drug_from_history, args=("レルベア２００エリプタ３０吸入用",))
+
+drug_cols2 = st.columns(3)
+with drug_cols2[0]:
+    st.button("シムビコート", use_container_width=True, on_click=set_drug_from_history, args=("シムビコートタービュヘイラー３０吸入",))
+with drug_cols2[1]:
+    st.button("テリルジー", use_container_width=True, on_click=set_drug_from_history, args=("テリルジー１００エリプタ３０吸入用",))
+with drug_cols2[2]:
+    st.button("フルティフォーム", use_container_width=True, on_click=set_drug_from_history, args=("フルティフォーム５０エアゾール",))
 
 # 2列2行ボタングリッド
 st.markdown("<p style='font-size: 0.72rem; font-weight: 600; color: #64748B; margin-top: 0.5rem; margin-bottom: 0.25rem;'>文面生成（クリックで自動入力）</p>", unsafe_allow_html=True)
@@ -306,6 +333,12 @@ consent_not_got_str = "☒" if consent_option == "得ていない" else "☐"
 consent_refused_str = "☒" if consent_option == "拒否（治療上重要なため報告）" else "☐"
 
 def generate_docx():
+    # 入力された医師・薬剤を履歴に追加
+    if doctor_name and doctor_name not in st.session_state["history_doctors"]:
+        st.session_state["history_doctors"].insert(0, doctor_name)
+    if target_drug and target_drug not in st.session_state["history_drugs"]:
+        st.session_state["history_drugs"].insert(0, target_drug)
+
     doc = DocxTemplate(TEMPLATE_PATH)
     context = {
         "doctor_name": doctor_name,
