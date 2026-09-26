@@ -32,12 +32,12 @@ st.markdown("""
 
     /* ヘッダーエリアのコンパクト化 */
     .header-box {
-        margin-bottom: 0.6rem;
+        margin-bottom: 0.5rem;
         display: flex;
         align-items: baseline;
         justify-content: space-between;
         border-bottom: 1px solid #E2E8F0;
-        padding-bottom: 0.4rem;
+        padding-bottom: 0.35rem;
     }
     .header-title {
         font-size: 1.15rem;
@@ -51,7 +51,7 @@ st.markdown("""
     }
 
     /* ラベルの小型化と余白削減 */
-    .stTextInput > label, .stTextArea > label, .stRadio > label {
+    .stTextInput > label, .stSelectbox > label, .stTextArea > label, .stRadio > label {
         font-size: 0.78rem !important;
         font-weight: 600 !important;
         color: #475569 !important;
@@ -59,38 +59,23 @@ st.markdown("""
     }
 
     /* 入力ウィジェットの垂直マージン圧縮 */
-    div[data-testid="stTextInput"], div[data-testid="stTextArea"], div[data-testid="stRadio"] {
+    div[data-testid="stTextInput"], div[data-testid="stSelectbox"], div[data-testid="stTextArea"], div[data-testid="stRadio"] {
         margin-bottom: -0.35rem !important;
     }
 
-    /* 入力ボックスのスリム化 */
-    input[type="text"] {
+    /* 入力ボックス・セレクトボックスのスリム化 */
+    input[type="text"], div[data-baseweb="select"] > div {
         height: 34px !important;
-        padding: 4px 10px !important;
+        min-height: 34px !important;
+        padding: 2px 8px !important;
         font-size: 0.85rem !important;
         border-radius: 6px !important;
         background-color: #FFFFFF !important;
         border: 1px solid #CBD5E1 !important;
     }
-    input[type="text"]:focus, textarea:focus {
+    input[type="text"]:focus {
         border-color: #0F172A !important;
         box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08) !important;
-    }
-
-    /* 履歴チップボタンスタイル */
-    .history-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-top: 2px;
-        margin-bottom: 6px;
-        overflow-x: auto;
-    }
-    .history-label {
-        font-size: 0.70rem;
-        color: #94A3B8;
-        font-weight: 600;
-        white-space: nowrap;
     }
 
     /* テキストエリアのスリム化 */
@@ -155,6 +140,7 @@ st.markdown("""
 
 TEMPLATE_PATH = "template_kyunyu_report.docx"
 JSON_PATH = "templates.json"
+HISTORY_FILE = "report_history.json"
 
 if not os.path.exists(TEMPLATE_PATH):
     from create_template import generate_template
@@ -169,6 +155,37 @@ def load_templates():
 
 template_data = load_templates()
 
+# 履歴読み込み関数（直近20件）
+def load_report_history():
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+# 履歴保存関数（直近20件を保持）
+def save_report_history(doc, drug, guidance):
+    if not doc or not drug:
+        return
+    history = load_report_history()
+    entry = {
+        "timestamp": datetime.datetime.now().strftime("%m/%d %H:%M"),
+        "doctor": doc,
+        "drug": drug,
+        "guidance": guidance
+    }
+    # 重複除去して先頭に追加
+    filtered = [h for h in history if not (h.get("doctor") == doc and h.get("drug") == drug and h.get("guidance") == guidance)]
+    updated = [entry] + filtered
+    updated = updated[:20]
+    try:
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(updated, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
 # 薬局設定のURLパラメータ
 params = st.query_params
 default_pharmacy_name = params.get("p_name", "アビー薬局")
@@ -177,40 +194,12 @@ default_pharmacy_tel = params.get("p_tel", "029-200-1234")
 default_pharmacy_fax = params.get("p_fax", "029-200-1235")
 default_pharmacist_name = params.get("p_phm", "薬師寺　花子")
 
-# 履歴データの初期化（医師と薬剤の最近使ったリスト）
-if "history_doctors" not in st.session_state:
-    st.session_state["history_doctors"] = ["相澤　一郎"]
-
-if "history_drugs" not in st.session_state:
-    st.session_state["history_drugs"] = [
-        "イナビル吸入粉末剤２０ｍｇ",
-        "レルベア１００エリプタ３０吸入用",
-        "シムビコートタービュヘイラー３０吸入",
-        "テリルジー１００エリプタ３０吸入用",
-        "フルティフォーム５０エアゾール"
-    ]
-
-# 入力欄のセッション状態初期化
+# 各入力フィールドのセッション状態管理
 if "input_doctor" not in st.session_state:
     st.session_state["input_doctor"] = "相澤　一郎"
 
 if "input_drug" not in st.session_state:
     st.session_state["input_drug"] = "イナビル吸入粉末剤２０ｍｇ"
-
-def set_doctor_from_history(doc_name):
-    st.session_state["input_doctor"] = doc_name
-
-def set_drug_from_history(drug_name):
-    st.session_state["input_drug"] = drug_name
-
-def get_today_wareki():
-    today = datetime.date.today()
-    if today.year >= 2019:
-        reiwa_year = today.year - 2018
-        year_str = "令和元年" if reiwa_year == 1 else f"令和{reiwa_year}年"
-    else:
-        year_str = f"{today.year}年"
-    return f"{year_str}{today.month}月{today.day}日"
 
 DEFAULT_GUIDANCE = (
     "説明書および練習用吸入器を用いて吸入手技の確認・指導を実施しました。\n"
@@ -227,6 +216,15 @@ def set_random_template(category_key):
     if items:
         chosen_text = random.choice(items)
         st.session_state["input_guidance_detail"] = chosen_text
+
+def get_today_wareki():
+    today = datetime.date.today()
+    if today.year >= 2019:
+        reiwa_year = today.year - 2018
+        year_str = "令和元年" if reiwa_year == 1 else f"令和{reiwa_year}年"
+    else:
+        year_str = f"{today.year}年"
+    return f"{year_str}{today.month}月{today.day}日"
 
 # ヘッダー
 st.markdown("""
@@ -259,21 +257,34 @@ with st.sidebar:
         st.success("✅ 設定がURLに反映されました！")
         st.info("💡 アドレスバーのURLをお気に入りに登録しておけば、次回から自動で自店情報が入ります。")
 
+# --- 過去の作成履歴から引用（直近20件） ---
+history_list = load_report_history()
+if history_list:
+    history_labels = ["（新規作成 / 履歴から選択しない）"] + [
+        f"{h['timestamp']} ｜ {h['doctor']} 先生 ｜ {h['drug']}"
+        for h in history_list
+    ]
+
+    def on_history_change():
+        idx = st.session_state.get("selected_history_idx", 0)
+        if idx > 0 and idx - 1 < len(history_list):
+            item = history_list[idx - 1]
+            st.session_state["input_doctor"] = item["doctor"]
+            st.session_state["input_drug"] = item["drug"]
+            st.session_state["input_guidance_detail"] = item["guidance"]
+
+    st.selectbox(
+        "📋 過去のレポート履歴から引用（直近20件）",
+        options=range(len(history_labels)),
+        format_func=lambda i: history_labels[i],
+        key="selected_history_idx",
+        on_change=on_history_change
+    )
+
 # --- メインフォーム ---
 
 report_date = st.text_input("報告日", value=get_today_wareki())
-
-# 処方医名：普通のテキスト入力 ＋ 直感的な履歴ボタン
 doctor_name = st.text_input("処方医名（先生御机下）", key="input_doctor")
-
-# 履歴が複数ある場合にボタンでワンタップ入力
-if len(st.session_state["history_doctors"]) > 0:
-    st.caption("よく使う処方医（クリックで自動入力）：")
-    doc_cols = st.columns(min(len(st.session_state["history_doctors"]), 4))
-    for i, doc in enumerate(st.session_state["history_doctors"][:4]):
-        with doc_cols[i]:
-            st.button(doc, key=f"btn_doc_{i}", use_container_width=True, on_click=set_doctor_from_history, args=(doc,))
-
 patient_name = st.text_input("患者名（様）", value="山田　太郎")
 patient_dob = st.text_input("生年月日", value="平成29年3月14日")
 order_no = st.text_input("オーダー番号（任意）", value="")
@@ -285,27 +296,9 @@ consent_option = st.radio(
     horizontal=True
 )
 
-# 対象薬剤：普通のテキスト入力 ＋ 直感的な履歴・主要薬ボタン
 target_drug = st.text_input("対象薬剤", key="input_drug")
 
-st.caption("よく使う吸入薬（クリックで自動入力）：")
-drug_cols1 = st.columns(3)
-with drug_cols1[0]:
-    st.button("イナビル", use_container_width=True, on_click=set_drug_from_history, args=("イナビル吸入粉末剤２０ｍｇ",))
-with drug_cols1[1]:
-    st.button("レルベア100", use_container_width=True, on_click=set_drug_from_history, args=("レルベア１００エリプタ３０吸入用",))
-with drug_cols1[2]:
-    st.button("レルベア200", use_container_width=True, on_click=set_drug_from_history, args=("レルベア２００エリプタ３０吸入用",))
-
-drug_cols2 = st.columns(3)
-with drug_cols2[0]:
-    st.button("シムビコート", use_container_width=True, on_click=set_drug_from_history, args=("シムビコートタービュヘイラー３０吸入",))
-with drug_cols2[1]:
-    st.button("テリルジー", use_container_width=True, on_click=set_drug_from_history, args=("テリルジー１００エリプタ３０吸入用",))
-with drug_cols2[2]:
-    st.button("フルティフォーム", use_container_width=True, on_click=set_drug_from_history, args=("フルティフォーム５０エアゾール",))
-
-# 2列2行ボタングリッド
+# 2列2行ボタングリッド（文面ランダム生成）
 st.markdown("<p style='font-size: 0.72rem; font-weight: 600; color: #64748B; margin-top: 0.5rem; margin-bottom: 0.25rem;'>文面生成（クリックで自動入力）</p>", unsafe_allow_html=True)
 
 b1, b2 = st.columns(2)
@@ -333,11 +326,8 @@ consent_not_got_str = "☒" if consent_option == "得ていない" else "☐"
 consent_refused_str = "☒" if consent_option == "拒否（治療上重要なため報告）" else "☐"
 
 def generate_docx():
-    # 入力された医師・薬剤を履歴に追加
-    if doctor_name and doctor_name not in st.session_state["history_doctors"]:
-        st.session_state["history_doctors"].insert(0, doctor_name)
-    if target_drug and target_drug not in st.session_state["history_drugs"]:
-        st.session_state["history_drugs"].insert(0, target_drug)
+    # 作成時に履歴（直近20件）へ自動保存
+    save_report_history(doctor_name, target_drug, guidance_detail)
 
     doc = DocxTemplate(TEMPLATE_PATH)
     context = {
