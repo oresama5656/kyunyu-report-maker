@@ -194,12 +194,41 @@ default_pharmacy_tel = params.get("p_tel", "029-200-1234")
 default_pharmacy_fax = params.get("p_fax", "029-200-1235")
 default_pharmacist_name = params.get("p_phm", "薬師寺　花子")
 
-# 各入力フィールドのセッション状態管理
+# 過去履歴から医師・薬剤の一覧を抽出
+history_list = load_report_history()
+
+doctor_history = []
+for h in history_list:
+    d = h.get("doctor")
+    if d and d not in doctor_history:
+        doctor_history.append(d)
+if not doctor_history:
+    doctor_history = ["相澤　一郎"]
+
+drug_history = []
+for h in history_list:
+    dr = h.get("drug")
+    if dr and dr not in drug_history:
+        drug_history.append(dr)
+# 主要な吸入薬デフォルト
+standard_drugs = [
+    "イナビル吸入粉末剤２０ｍｇ",
+    "レルベア１００エリプタ３０吸入用",
+    "レルベア２００エリプタ３０吸入用",
+    "シムビコートタービュヘイラー３０吸入",
+    "テリルジー１００エリプタ３０吸入用",
+    "フルティフォーム５０エアゾール"
+]
+for sd in standard_drugs:
+    if sd not in drug_history:
+        drug_history.append(sd)
+
+# セッション状態管理
 if "input_doctor" not in st.session_state:
-    st.session_state["input_doctor"] = "相澤　一郎"
+    st.session_state["input_doctor"] = doctor_history[0]
 
 if "input_drug" not in st.session_state:
-    st.session_state["input_drug"] = "イナビル吸入粉末剤２０ｍｇ"
+    st.session_state["input_drug"] = drug_history[0]
 
 DEFAULT_GUIDANCE = (
     "説明書および練習用吸入器を用いて吸入手技の確認・指導を実施しました。\n"
@@ -258,7 +287,6 @@ with st.sidebar:
         st.info("💡 アドレスバーのURLをお気に入りに登録しておけば、次回から自動で自店情報が入ります。")
 
 # --- 過去の作成履歴から引用（直近20件） ---
-history_list = load_report_history()
 if history_list:
     history_labels = ["（新規作成 / 履歴から選択しない）"] + [
         f"{h['timestamp']} ｜ {h['doctor']} 先生 ｜ {h['drug']}"
@@ -284,7 +312,21 @@ if history_list:
 # --- メインフォーム ---
 
 report_date = st.text_input("報告日", value=get_today_wareki())
-doctor_name = st.text_input("処方医名（先生御机下）", key="input_doctor")
+
+# 処方医名（履歴選択＋直接入力が可能なスマートコンボボックス）
+current_doc = st.session_state.get("input_doctor", doctor_history[0])
+if current_doc not in doctor_history:
+    doctor_history.insert(0, current_doc)
+doc_idx = doctor_history.index(current_doc) if current_doc in doctor_history else 0
+
+doctor_name = st.selectbox(
+    "処方医名（先生御机下）※履歴選択または直接入力",
+    options=doctor_history,
+    index=doc_idx,
+    accept_new_options=True,
+    key="input_doctor"
+)
+
 patient_name = st.text_input("患者名（様）", value="山田　太郎")
 patient_dob = st.text_input("生年月日", value="平成29年3月14日")
 order_no = st.text_input("オーダー番号（任意）", value="")
@@ -296,7 +338,19 @@ consent_option = st.radio(
     horizontal=True
 )
 
-target_drug = st.text_input("対象薬剤", key="input_drug")
+# 対象薬剤（履歴選択＋直接入力が可能なスマートコンボボックス）
+current_drug = st.session_state.get("input_drug", drug_history[0])
+if current_drug not in drug_history:
+    drug_history.insert(0, current_drug)
+drug_idx = drug_history.index(current_drug) if current_drug in drug_history else 0
+
+target_drug = st.selectbox(
+    "対象薬剤 ※履歴選択または直接入力",
+    options=drug_history,
+    index=drug_idx,
+    accept_new_options=True,
+    key="input_drug"
+)
 
 # 2列2行ボタングリッド（文面ランダム生成）
 st.markdown("<p style='font-size: 0.72rem; font-weight: 600; color: #64748B; margin-top: 0.5rem; margin-bottom: 0.25rem;'>文面生成（クリックで自動入力）</p>", unsafe_allow_html=True)
